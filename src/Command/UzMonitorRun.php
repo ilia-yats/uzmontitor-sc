@@ -7,6 +7,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class UzMonitorRun extends Command
@@ -41,6 +42,8 @@ class UzMonitorRun extends Command
 
     public function execute(InputInterface $input, OutputInterface $output)
     {
+        $output = new BufferedOutput($output->getVerbosity(), $output->isDecorated(), $output->getFormatter());
+
         $fromCode = $input->getArgument('fromCode');
         $toCode = $input->getArgument('toCode');
         $date = $input->getArgument('date');
@@ -244,6 +247,8 @@ class UzMonitorRun extends Command
             if (!empty($trainsData['warning'])) {
                 $output->writeln($trainsData['warning']);
             }
+
+            file_put_contents(ROOT . '/var/monitorlog.txt', $output->fetch(), FILE_APPEND);
         }
     }
 
