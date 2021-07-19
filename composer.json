@@ -1,0 +1,13 @@
+{
+    "name": "ilia-yats/uzmonitor-sc",
+    "type": "project",
+    "require": {
+        "php": "~7.2.3",
+        "symfony/console": "^5.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    }
+}
