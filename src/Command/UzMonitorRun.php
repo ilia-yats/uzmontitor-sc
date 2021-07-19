@@ -224,18 +224,14 @@ class UzMonitorRun extends Command
 
                         $output->writeln('Ticket put in cart: session id '.$this->webClient->sessionId);
 
-                        for ($i = 0; $i < 5; $i++) {
-
-                            if ($inTermux) {
-                                // termux version (for android)
-                                exec('termux-vibrate 2000');
-                                exec('termux-notification --content "Tickets in you cart!"');
-                            } else {
-                                // mac version
-                                exec('say "Tickets in you cart!"');
-                            }
-
-                            sleep(2);
+                        if ($inTermux) {
+                            // termux version (for android)
+                            exec('termux-vibrate -d 5000');
+                            exec('termux-notification -c "Tickets in you cart! Session id in a clipboard!"');
+                            exec('termux-clipboard-set "' . $this->webClient->sessionId . '"');
+                        } else {
+                            // mac version
+                            exec('say "Tickets in you cart!"');
                         }
 
                         return Command::SUCCESS;
@@ -287,10 +283,11 @@ class UzMonitorRun extends Command
     {
         if ($inTermux) {
             // termux version
-            exec('termux-vibrate 5000');
+            exec('termux-vibrate -d 5000');
+            exec('termux-notification -c "Ticket monitor failed, please restart."');
         } else {
             // mac version
-            exec('say "Unexpected response!"');
+            exec('say "Ticket monitor failed, please restart."');
         }
 
         $output->writeln('Unexpected response!');
