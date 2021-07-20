@@ -42,7 +42,7 @@ class UzMonitorRun extends Command
 
     public function execute(InputInterface $input, OutputInterface $output)
     {
-        $output = new BufferedOutput($output->getVerbosity(), $output->isDecorated(), $output->getFormatter());
+        $bufferedOutput = new BufferedOutput($output->getVerbosity(), $output->isDecorated(), $output->getFormatter());
 
         $fromCode = $input->getArgument('fromCode');
         $toCode = $input->getArgument('toCode');
@@ -57,11 +57,11 @@ class UzMonitorRun extends Command
         $debug = $input->getOption('debug');
         $inTermux = $input->getOption('inTermux');
 
-        $output->writeln('Start monitoring...');
+        $bufferedOutput->writeln('Start monitoring...');
 
         while(true) {
 
-            $output->writeln(date('d.m H:i:s').' New request...');
+            $bufferedOutput->writeln(date('d.m H:i:s').' New request...');
 
             $data = [
                 'from' => $fromCode,
@@ -70,12 +70,12 @@ class UzMonitorRun extends Command
                 'time' => $minTime,
             ];
 
-            $debug && $output->writeln('Get trains');
+            $debug && $bufferedOutput->writeln('Get trains');
 
             $trainsResponseJson = $this->webClient->post('https://booking.uz.gov.ua/ru/train_search/', $data);
 
             if (($trainsResponse = json_decode($trainsResponseJson, true)) && isset($trainsResponse['captcha'])) {
-                $output->writeln('Got captcha, trying to bypass...');
+                $bufferedOutput->writeln('Got captcha, trying to bypass...');
 
                 $antiCacheKey = explode(' ', microtime())[0];
                 file_put_contents('captcha.jpg', $this->webClient->get('https://booking.uz.gov.ua/ru/captcha/?key='.$antiCacheKey));
@@ -83,7 +83,7 @@ class UzMonitorRun extends Command
 
                 exec('ffmpeg -y -hide_banner -loglevel error -i captcha.ogg captcha.wav');
 
-                $debug && $output->writeln('Captcha saved and converted');
+                $debug && $bufferedOutput->writeln('Captcha saved and converted');
 
                 $azureSstToken = $this->webClient->post(
                     'https://northeurope.api.cognitive.microsoft.com/sts/v1.0/issuetoken',
@@ -96,7 +96,7 @@ class UzMonitorRun extends Command
                     true
                 );
 
-                $debug && $output->writeln('Got azure token: ' . $azureSstToken);
+                $debug && $bufferedOutput->writeln('Got azure token: ' . $azureSstToken);
 
                 $captchaRecognitionResponse = $this->webClient->post(
                     'https://northeurope.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ru-RU',
@@ -108,7 +108,7 @@ class UzMonitorRun extends Command
                     true
                 );
 
-               $debug && $output->writeln('Recognition API response: ' . $captchaRecognitionResponse);
+               $debug && $bufferedOutput->writeln('Recognition API response: ' . $captchaRecognitionResponse);
 
                 $recognitionData = json_decode($captchaRecognitionResponse, true);
                 $captchaText = $recognitionData['DisplayText'];
@@ -121,7 +121,7 @@ class UzMonitorRun extends Command
                 );
                 $captchaText = preg_replace('~\D~', '', $captchaText);
 
-                $debug && $output->writeln('Resend with captcha text: ' . $captchaText);
+                $debug && $bufferedOutput->writeln('Resend with captcha text: ' . $captchaText);
 
                 $trainsResponseJson = $this->webClient->post('https://booking.uz.gov.ua/ru/train_search/', array_merge($data, [
                     'captcha' => $captchaText
@@ -129,7 +129,7 @@ class UzMonitorRun extends Command
             }
 
             if (empty($trainsResponse = json_decode($trainsResponseJson, true)) || empty($trainsData = $trainsResponse['data'] ?? null)) {
-                $this->notifyUnexpectedResponse($output, $inTermux, $trainsResponseJson);
+                $this->notifyUnexpectedResponse($bufferedOutput, $inTermux, $trainsResponseJson);
 
                 return Command::FAILURE;
             }
@@ -151,7 +151,7 @@ class UzMonitorRun extends Command
                 if (!empty($matchedTrains)) {
                     $train = reset($matchedTrains);
 
-                    $debug && $output->writeln('Get wagons');
+                    $debug && $bufferedOutput->writeln('Get wagons');
 
                     $wagonsResponseJson = $this->webClient->post('https://booking.uz.gov.ua/ru/train_wagons/', array_merge($data, [
                         'train' => $train['num'],
@@ -159,7 +159,7 @@ class UzMonitorRun extends Command
                     ]));
 
                     if (empty($wagonsResponse = json_decode($wagonsResponseJson, true)) || empty($wagonsData = $wagonsResponse['data'] ?? null)) {
-                        $this->notifyUnexpectedResponse($output, $inTermux, $wagonsResponseJson);
+                        $this->notifyUnexpectedResponse($bufferedOutput, $inTermux, $wagonsResponseJson);
 
                         return Command::FAILURE;
                     }
@@ -167,7 +167,7 @@ class UzMonitorRun extends Command
                     if (!empty($wagonsList = $wagonsData['wagons'])) {
                         $wagon = reset($wagonsData['wagons']);
 
-                        $debug && $output->writeln('Get places');
+                        $debug && $bufferedOutput->writeln('Get places');
 
                         $wagonResponseJson = $this->webClient->post('https://booking.uz.gov.ua/ru/train_wagon/', array_merge($data, [
                             'train' => $train['num'],
@@ -177,7 +177,7 @@ class UzMonitorRun extends Command
                         ]));
 
                         if (empty($wagonResponse = json_decode($wagonResponseJson, true)) || empty($wagonData = $wagonResponse['data'] ?? null)) {
-                            $this->notifyUnexpectedResponse($output, $inTermux, $wagonResponseJson);
+                            $this->notifyUnexpectedResponse($bufferedOutput, $inTermux, $wagonResponseJson);
 
                             return Command::FAILURE;
                         }
@@ -219,7 +219,7 @@ class UzMonitorRun extends Command
                             $i++;
                         }
 
-                        $debug && $output->writeln('Put places to cart');
+                        $debug && $bufferedOutput->writeln('Put places to cart');
 
                         $this->webClient->post('https://booking.uz.gov.ua/ru/cart/add/', [
                             'places' => $placesRequest
@@ -245,10 +245,12 @@ class UzMonitorRun extends Command
             sleep(rand(5, 10));
 
             if (!empty($trainsData['warning'])) {
-                $output->writeln($trainsData['warning']);
+                $bufferedOutput->writeln($trainsData['warning']);
             }
 
-            file_put_contents(ROOT . '/var/monitorlog.txt', $output->fetch(), FILE_APPEND);
+            $logName = sprintf('monitorlog_%s_%s_%s', $fromCode, $toCode, $date);
+
+            file_put_contents(ROOT . '/var/' . $logName . '.log', $bufferedOutput->fetch(), FILE_APPEND);
         }
     }
 
